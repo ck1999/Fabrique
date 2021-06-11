@@ -113,6 +113,3 @@ dmypy.json
 # Pyre type checker
 .pyre/
 fabrique-env/
-Fabrique/votings/migrations/__init__.py
-Fabrique/votings/__init__.py
-Fabrique/Fabrique/__init__.py
