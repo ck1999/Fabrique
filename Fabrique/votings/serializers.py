@@ -1,10 +1,6 @@
 from rest_framework import serializers
-
-from django.shortcuts import get_object_or_404
-
 from datetime import date
-
-from .models import Voting, VoteVariant_Type1, VoteVariant_Type2, VoteVariant_Type3
+from .models import Voting, Choice, VoteFact
 
 class VotingSerializer(serializers.ModelSerializer):
 
@@ -12,6 +8,7 @@ class VotingSerializer(serializers.ModelSerializer):
     title = serializers.CharField(max_length=100)
     description = serializers.CharField(max_length=100)
     type = serializers.ChoiceField(choices=[1,2,3])
+    total_choices = serializers.IntegerField(default=1)
     published = serializers.DateTimeField(default=date.today(), read_only=True)
     finished = serializers.DateTimeField()
     is_active = serializers.BooleanField(default=True, read_only=True)
@@ -23,14 +20,11 @@ class VotingSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         voting = Voting(**validated_data)
         voting.save()
-        if validated_data['type'] == 1:
-            type = VoteVariant_Type1(voting=voting, description='WOW')
-        elif validated_data['type'] == 2:
-            type = VoteVariant_Type2(voting=voting)
-        else:
-            type = VoteVariant_Type3(voting=voting)
-
-        type.save()
+        
+        if validated_data['type'] == 2:
+            for i in range(voting.total_choices):
+                __choice = Choice(voting=voting, text=f'VID: {voting.id}')
+                __choice.save()
 
         return voting
 
@@ -40,12 +34,47 @@ class VotingSerializer(serializers.ModelSerializer):
         
         return voting
 
-class VoteSerializer(serializers.ModelSerializer):
+class ChoicesSerializer(serializers.ModelSerializer):
+
+    voting = serializers.PrimaryKeyRelatedField(queryset=Voting.objects.all().filter(is_active=True))
 
     class Meta:
-        model = VoteVariant_Type2
+        model = Choice
         fields = '__all__'
 
-    def create(self, pk, validated_data):
-        voting = get_object_or_404(VoteVariant_Type1, id=pk) or get_object_or_404(VoteVariant_Type2, id=pk) or get_object_or_404(VoteVariant_Type3, id=pk)
-        pass
+    def create(self, validated_data):
+        choice = Choice(**validated_data)
+        choice.save()
+
+        return choice
+
+    def update(self, pk, validated_data):
+        choice = Choice(id=pk, **validated_data)
+        choice.save()
+
+        return choice
+
+class VotesSerializer(serializers.ModelSerializer):
+
+    choice = serializers.PrimaryKeyRelatedField(queryset=Choice.objects.all())
+    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = VoteFact
+        fields = '__all__'
+
+    def create(self, validated_data):
+        vote = VoteFact(**validated_data)
+        vote.save()
+
+        choice = Choice.objects.get(id=validated_data['choice'].id)
+        choice.total_votes += 1
+        choice.save()
+        
+        return vote
+
+    def update(self, pk, validated_data):
+        vote = VoteFact(id=pk, **validated_data)
+        vote.save()
+
+        return vote
